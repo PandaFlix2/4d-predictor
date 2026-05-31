@@ -59,24 +59,34 @@ def save_results_bulk(results):
     conn.commit()
     conn.close()
 
-def get_results_by_company(syarikat, days=60, offset=0):
+def get_results_by_company(syarikat, days=60):
     conn = sqlite3.connect(get_db_path())
     cursor = conn.cursor()
     
-    if offset > 0:
-        cursor.execute('''
-            SELECT nombor4d FROM keputusan 
-            WHERE syarikat = ? AND tarikh >= date('now', ?) AND tarikh <= date('now', ?)
-        ''', (syarikat, f'-{days + offset} days', f'-{offset} days'))
-    else:
-        cursor.execute('''
-            SELECT nombor4d FROM keputusan 
-            WHERE syarikat = ? AND tarikh >= date('now', ?)
-        ''', (syarikat, f'-{days} days'))
+    cursor.execute('''
+        SELECT nombor4d, tarikh FROM keputusan 
+        WHERE syarikat = ? AND tarikh >= date('now', ?)
+        ORDER BY tarikh DESC
+    ''', (syarikat, f'-{days} days'))
     
     data = cursor.fetchall()
     conn.close()
-    return [row[0] for row in data]
+    return data  # Returns list of (nombor, tarikh)
+
+def get_all_results_with_dates(syarikat):
+    """Get all results with dates for a company"""
+    conn = sqlite3.connect(get_db_path())
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT nombor4d, tarikh FROM keputusan 
+        WHERE syarikat = ?
+        ORDER BY tarikh DESC
+    ''', (syarikat,))
+    
+    data = cursor.fetchall()
+    conn.close()
+    return data
 
 def get_stats():
     conn = sqlite3.connect(get_db_path())
