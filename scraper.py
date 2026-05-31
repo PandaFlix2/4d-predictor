@@ -1,12 +1,11 @@
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime, timedelta
+from datetime import datetime
 import database as db
 import re
-import random
 
-def scrape_4dmoon():
-    """Scrape real 4D results from 4dmoon.com"""
+def scrape_4dmoon_top3():
+    """Scrape ONLY 1st, 2nd, 3rd Prize from 4dmoon.com"""
     results = {'Magnum': [], 'Toto': [], 'Kuda': []}
     
     try:
@@ -16,116 +15,97 @@ def scrape_4dmoon():
         }
         response = requests.get(url, headers=headers, timeout=30)
         soup = BeautifulSoup(response.text, 'html.parser')
+        text = soup.text
         
-        # Find all 4-digit numbers
-        all_numbers = re.findall(r'\b\d{4}\b', soup.text)
-        valid_numbers = [num for num in all_numbers if 1000 <= int(num) <= 9999]
+        # ============================================
+        # SCRAPE MAGNUM 1st, 2nd, 3rd PRIZE
+        # ============================================
+        magnum_pattern = r'Magnum 4D.*?1st Prize\s*(\d{4})\s*2nd Prize\s*(\d{4})\s*3rd Prize\s*(\d{4})'
+        match = re.search(magnum_pattern, text, re.DOTALL | re.IGNORECASE)
+        if match:
+            results['Magnum'] = [match.group(1), match.group(2), match.group(3)]
+            print(f"  Magnum TOP 3: {results['Magnum']}")
         
-        # Separate by sections (simplified - look for patterns)
-        text = soup.text.lower()
+        # ============================================
+        # SCRAPE SPORTS TOTO 1st, 2nd, 3rd PRIZE
+        # ============================================
+        toto_pattern = r'SportsToto 4D.*?1st Prize\s*(\d{4})\s*2nd Prize\s*(\d{4})\s*3rd Prize\s*(\d{4})'
+        match = re.search(toto_pattern, text, re.DOTALL | re.IGNORECASE)
+        if match:
+            results['Toto'] = [match.group(1), match.group(2), match.group(3)]
+            print(f"  Toto TOP 3: {results['Toto']}")
         
-        if 'magnum' in text:
-            results['Magnum'] = valid_numbers[:20] if valid_numbers else []
-        if 'sportstoto' in text or 'toto' in text:
-            results['Toto'] = valid_numbers[20:40] if len(valid_numbers) > 20 else []
-        if 'grand dragon' in text or 'kuda' in text:
-            results['Kuda'] = valid_numbers[40:60] if len(valid_numbers) > 40 else []
+        # ============================================
+        # SCRAPE GRAND DRAGON/KUDA 1st, 2nd, 3rd PRIZE
+        # ============================================
+        kuda_pattern = r'Grand Dragon 4D.*?1st Prize\s*(\d{4})\s*2nd Prize\s*(\d{4})\s*3rd Prize\s*(\d{4})'
+        match = re.search(kuda_pattern, text, re.DOTALL | re.IGNORECASE)
+        if match:
+            results['Kuda'] = [match.group(1), match.group(2), match.group(3)]
+            print(f"  Kuda TOP 3: {results['Kuda']}")
         
-        print(f"  Scraped: Magnum={len(results['Magnum'])}, Toto={len(results['Toto'])}, Kuda={len(results['Kuda'])}")
+        # If patterns above fail, try alternative method
+        if not any(results.values()):
+            # Find all "1st Prize", "2nd Prize", "3rd Prize" patterns
+            prize_pattern = r'(?:1st|2nd|3rd)\s+Prize\s*(\d{4})'
+            all_prizes = re.findall(prize_pattern, text)
+            
+            # Distribute to companies (first 3 = Magnum, next 3 = Toto, next 3 = Kuda)
+            if len(all_prizes) >= 9:
+                results['Magnum'] = all_prizes[0:3]
+                results['Toto'] = all_prizes[3:6]
+                results['Kuda'] = all_prizes[6:9]
+                print(f"  Alternative method: Magnum={results['Magnum']}, Toto={results['Toto']}, Kuda={results['Kuda']}")
         
     except Exception as e:
         print(f"  Scrape error: {e}")
     
     return results
 
-def generate_historical_data(days_back=180):
-    """Generate historical data for initial setup"""
-    print(f"Generating {days_back} days of historical data...")
-    
-    syarikat_list = ['Magnum', 'Toto', 'Kuda']
-    today = datetime.now()
-    
-    sample_numbers = {
-        'Magnum': ['1234', '2345', '3456', '4567', '5678', '6789', '7890', '8901', '9012', '0123'],
-        'Toto': ['1357', '2468', '3579', '4680', '5791', '6802', '7913', '8024', '9135', '0246'],
-        'Kuda': ['1212', '2323', '3434', '4545', '5656', '6767', '7878', '8989', '9090', '0101']
-    }
-    
-    results_batch = []
-    draw_counter = 0
-    
-    for i in range(days_back):
-        tarikh = (today - timedelta(days=i)).strftime('%Y-%m-%d')
-        
-        for syarikat in syarikat_list:
-            # Simulate draws based on schedule
-            weekday = datetime.strptime(tarikh, '%Y-%m-%d').weekday()
-            
-            if syarikat == 'Magnum' and weekday in [2, 5, 6]:
-                nombor = random.choice(sample_numbers['Magnum'])
-                results_batch.append((tarikh, syarikat, nombor, f'Draw-{draw_counter}'))
-                draw_counter += 1
-            elif syarikat == 'Toto' and weekday in [2, 5]:
-                nombor = random.choice(sample_numbers['Toto'])
-                results_batch.append((tarikh, syarikat, nombor, f'Draw-{draw_counter}'))
-                draw_counter += 1
-            elif syarikat == 'Kuda':
-                nombor = random.choice(sample_numbers['Kuda'])
-                results_batch.append((tarikh, syarikat, nombor, f'Draw-{draw_counter}'))
-                draw_counter += 1
-        
-        if len(results_batch) >= 500:
-            db.save_results_bulk(results_batch)
-            results_batch = []
-    
-    if results_batch:
-        db.save_results_bulk(results_batch)
-    
-    print(f"Done! Generated {draw_counter} records")
-
 def update_current_week_data():
-    """Update with current week's data from 4dmoon"""
-    print("Fetching current data from 4dmoon.com...")
+    """Update with current week's TOP 3 data from 4dmoon"""
+    print("Fetching TOP 3 data from 4dmoon.com...")
     
-    scraped_data = scrape_4dmoon()
+    scraped_data = scrape_4dmoon_top3()
     today = datetime.now().strftime('%Y-%m-%d')
     
     results_batch = []
     
     for syarikat, numbers in scraped_data.items():
-        for num in numbers[:10]:
-            results_batch.append((today, syarikat, num, 'Current'))
+        for num in numbers:
+            if num:  # Only if number exists
+                results_batch.append((today, syarikat, num, 'TOP 3 Prize'))
     
     if results_batch:
         db.save_results_bulk(results_batch)
-        print(f"Saved {len(results_batch)} current records")
+        print(f"Saved {len(results_batch)} TOP 3 records")
+    else:
+        print("WARNING: No TOP 3 data scraped!")
     
     return len(results_batch)
 
 def update_all_data():
+    """Main function - scrape ONLY TOP 3 prizes from 4dmoon"""
     print("=" * 50)
-    print("Starting REAL DATA update from 4dmoon.com...")
+    print("Scraping ONLY 1st, 2nd, 3rd Prize from 4dmoon.com...")
     print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 50)
     
+    # Initialize database
     db.init_db()
     
-    stats = db.get_stats()
-    
-    if stats['total_records'] == 0:
-        print("Database empty. Generating historical data...")
-        generate_historical_data(180)
-    
-    print("Updating with current data...")
+    # Scrape current TOP 3 data
     update_current_week_data()
     
+    # Update metadata
     db.set_last_update_date()
     
-    final_stats = db.get_stats()
+    # Show stats
+    stats = db.get_stats()
     print("-" * 50)
     print(f"Update Complete!")
-    print(f"Total records: {final_stats['total_records']}")
-    print(f"Companies: {', '.join(final_stats['companies'])}")
+    print(f"Total records in database: {stats['total_records']}")
+    print(f"Companies: {', '.join(stats['companies'])}")
     print("=" * 50)
     
     return True
