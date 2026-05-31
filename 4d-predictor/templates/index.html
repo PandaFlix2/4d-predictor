@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ramalan 4D Malaysia - Hot Numbers</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 {
+            text-align: center;
+            color: #ffd700;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            text-align: center;
+            color: rgba(255,255,255,0.8);
+            margin-bottom: 30px;
+        }
+        .last-update {
+            text-align: center;
+            color: #ffd700;
+            font-size: 0.85em;
+            margin-bottom: 20px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+        }
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+        }
+        .card h2 {
+            color: #1a1a2e;
+            border-bottom: 2px solid #ffd700;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f5f5f5;
+        }
+        .number {
+            font-family: monospace;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #dc3545;
+        }
+        .hot {
+            background: #ff4757;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.7em;
+        }
+        .trending {
+            background: #ff9f43;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.7em;
+        }
+        .warning {
+            background: rgba(255,193,7,0.2);
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin-top: 30px;
+            border-radius: 8px;
+            color: white;
+            font-size: 0.85em;
+        }
+        .footer {
+            text-align: center;
+            color: rgba(255,255,255,0.5);
+            margin-top: 30px;
+            font-size: 0.75em;
+        }
+        @media (max-width: 768px) {
+            h1 { font-size: 1.5em; }
+            th, td { font-size: 0.8em; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎲 Ramalan 4D Malaysia</h1>
+        <div class="subtitle">Magnum | Sports Toto | Kuda</div>
+        <div class="last-update" id="lastUpdate">📅 Kemaskini terakhir: {{ last_update }}</div>
+        
+        <div class="grid" id="predictionsGrid">
+            <div style="text-align: center; color: white;">Loading...</div>
+        </div>
+        
+        <div class="warning">
+            <strong>⚠️ Peringatan:</strong> Ramalan berdasarkan analisis statistik data lepas. 
+            Nombor 4D adalah permainan rawak. Gunakan untuk rujukan sahaja.
+        </div>
+        
+        <div class="footer">
+            <p>Sumber data: 4dmoon.com | Update setiap minggu</p>
+        </div>
+    </div>
+    
+    <script>
+        async function loadPredictions() {
+            try {
+                const response = await fetch('/api/predictions');
+                const data = await response.json();
+                renderPredictions(data);
+            } catch (error) {
+                document.getElementById('predictionsGrid').innerHTML = 
+                    '<div style="color:red; text-align:center;">❌ Gagal muat ramalan</div>';
+            }
+        }
+        
+        function renderPredictions(data) {
+            const grid = document.getElementById('predictionsGrid');
+            grid.innerHTML = '';
+            
+            const titles = {'Magnum': '🎲 Magnum 4D', 'Toto': '🎰 Sports Toto', 'Kuda': '🐎 Kuda'};
+            
+            for (const [company, numbers] of Object.entries(data)) {
+                let tableRows = '';
+                numbers.slice(0, 15).forEach((item, i) => {
+                    tableRows += `
+                        <tr>
+                            <td>${i+1}</td>
+                            <td class="number">${item.nombor}</td>
+                            <td>${item.frekuensi}</td>
+                            <td>${item.peratusan}%</td>
+                            <td><span class="${item.label.includes('Hot') ? 'hot' : 'trending'}">${item.label}</span></td>
+                        </tr>
+                    `;
+                });
+                
+                grid.innerHTML += `
+                    <div class="card">
+                        <h2>${titles[company]}</h2>
+                        <table>
+                            <thead><tr><th>#</th><th>Nombor</th><th>Frekuensi</th><th>%</th><th>Status</th></tr></thead>
+                            <tbody>${tableRows}</tbody>
+                        </table>
+                    </div>
+                `;
+            }
+        }
+        
+        loadPredictions();
+    </script>
+</body>
+</html>
