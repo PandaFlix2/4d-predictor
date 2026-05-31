@@ -5,7 +5,7 @@ import database as db
 import re
 
 def scrape_4dmoon_top3():
-    """Scrape ONLY 1st, 2nd, 3rd Prize from 4dmoon.com - Flexible version"""
+    """Scrape ONLY 1st, 2nd, 3rd Prize from 4dmoon.com - NO DEMO NUMBERS"""
     results = {'Magnum': [], 'Toto': [], 'Kuda': []}
     
     try:
@@ -14,80 +14,50 @@ def scrape_4dmoon_top3():
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
         }
         response = requests.get(url, headers=headers, timeout=30)
-        soup = BeautifulSoup(response.text, 'html.parser')
+        response.encoding = 'utf-8'
+        text = response.text
         
-        # Get the whole page text
-        text = soup.get_text()
+        # ============================================
+        # SCRAPE MAGNUM 4D - Look for exact pattern
+        # ============================================
+        # Pattern: "Magnum 4D" then find 3 four-digit numbers in sequence
+        magnum_match = re.search(r'Magnum 4D.*?(\d{4}).*?(\d{4}).*?(\d{4})', text, re.DOTALL | re.IGNORECASE)
+        if magnum_match:
+            results['Magnum'] = [magnum_match.group(1), magnum_match.group(2), magnum_match.group(3)]
+            print(f"  ✓ Magnum: {results['Magnum']}")
         
-        # Method 1: Find all 4-digit numbers that appear near "Prize" words
-        lines = text.split('\n')
-        found_prizes = []
+        # ============================================
+        # SCRAPE SPORTS TOTO 4D
+        # ============================================
+        toto_match = re.search(r'SportsToto 4D.*?(\d{4}).*?(\d{4}).*?(\d{4})', text, re.DOTALL | re.IGNORECASE)
+        if toto_match:
+            results['Toto'] = [toto_match.group(1), toto_match.group(2), toto_match.group(3)]
+            print(f"  ✓ Toto: {results['Toto']}")
         
-        for i, line in enumerate(lines):
-            if 'Prize' in line and ('1st' in line or '2nd' in line or '3rd' in line):
-                # Look for 4-digit number in this line or next 2 lines
-                for j in range(i, min(i+3, len(lines))):
-                    nums = re.findall(r'\b\d{4}\b', lines[j])
-                    if nums:
-                        for num in nums:
-                            if 1000 <= int(num) <= 9999 and num not in found_prizes:
-                                found_prizes.append(num)
-                        break
+        # ============================================
+        # SCRAPE GRAND DRAGON / KUDA
+        # ============================================
+        kuda_match = re.search(r'Grand Dragon 4D.*?(\d{4}).*?(\d{4}).*?(\d{4})', text, re.DOTALL | re.IGNORECASE)
+        if kuda_match:
+            results['Kuda'] = [kuda_match.group(1), kuda_match.group(2), kuda_match.group(3)]
+            print(f"  ✓ Kuda: {results['Kuda']}")
         
-        # Distribute prizes to companies (order: Magnum, then Toto, then Kuda)
-        if len(found_prizes) >= 9:
-            results['Magnum'] = found_prizes[0:3]
-            results['Toto'] = found_prizes[3:6]
-            results['Kuda'] = found_prizes[6:9]
-            print(f"  Method 1 - Found {len(found_prizes)} prizes")
-        else:
-            # Method 2: Look for tables with 3 columns
-            tables = soup.find_all('table')
-            for table in tables:
-                rows = table.find_all('tr')
-                for row in rows:
-                    cells = row.find_all('td')
-                    if len(cells) >= 3:
-                        for cell in cells:
-                            num = cell.text.strip()
-                            if re.match(r'^\d{4}$', num) and 1000 <= int(num) <= 9999:
-                                # Try to assign to companies based on position
-                                pass
-        
-        # Method 3: Last resort - use regex search
-        if not any(results.values()):
-            # Find patterns like "1st Prize 1234" etc
-            pattern = r'(\d+)(?:st|nd|rd)\s+Prize\s*(\d{4})'
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            if matches:
-                prize_numbers = [m[1] for m in matches[:9]]
-                if len(prize_numbers) >= 9:
-                    results['Magnum'] = prize_numbers[0:3]
-                    results['Toto'] = prize_numbers[3:6]
-                    results['Kuda'] = prize_numbers[6:9]
-        
-        # If still no data, use demo data for testing
-        if not any(results.values()):
-            print("  WARNING: No live data scraped, using demo TOP 3 data")
-            results['Magnum'] = ['1234', '5678', '9012']
-            results['Toto'] = ['1357', '2468', '3579']
-            results['Kuda'] = ['1212', '2323', '3434']
-        
-        print(f"  FINAL: Magnum={results['Magnum']}, Toto={results['Toto']}, Kuda={results['Kuda']}")
+        # ============================================
+        # If any company has no data, leave as empty list
+        # ============================================
+        for company in results:
+            if not results[company]:
+                print(f"  ✗ {company}: No data scraped")
         
     except Exception as e:
-        print(f"  Scrape error: {e}")
-        # Demo fallback
-        results = {
-            'Magnum': ['1234', '5678', '9012'],
-            'Toto': ['1357', '2468', '3579'],
-            'Kuda': ['1212', '2323', '3434']
-        }
+        print(f"  ✗ Scrape error: {e}")
+        # Return empty results - NO DEMO NUMBERS
+        results = {'Magnum': [], 'Toto': [], 'Kuda': []}
     
     return results
 
 def update_current_week_data():
-    """Update with current week's TOP 3 data from 4dmoon"""
+    """Update with current week's TOP 3 data from 4dmoon - NO DEMO"""
     print("Fetching TOP 3 data from 4dmoon.com...")
     
     scraped_data = scrape_4dmoon_top3()
@@ -97,45 +67,53 @@ def update_current_week_data():
     
     for syarikat, numbers in scraped_data.items():
         for num in numbers:
-            if num:  # Only if number exists
+            if num and len(num) == 4:
                 results_batch.append((today, syarikat, num, 'TOP 3 Prize'))
     
     if results_batch:
+        # Clear old data to keep only latest
+        import sqlite3
+        conn = sqlite3.connect(db.get_db_path())
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM keputusan")
+        conn.commit()
+        conn.close()
+        
+        # Save new data
         db.save_results_bulk(results_batch)
         print(f"✅ Saved {len(results_batch)} TOP 3 records")
     else:
-        print("❌ No TOP 3 data saved!")
+        print("❌ No TOP 3 data scraped. Database remains empty.")
     
     return len(results_batch)
 
 def update_all_data():
-    """Main function - scrape ONLY TOP 3 prizes from 4dmoon"""
+    """Main function - scrape ONLY TOP 3 prizes from 4dmoon (NO DEMO)"""
     print("=" * 50)
-    print("Scraping ONLY 1st, 2nd, 3rd Prize from 4dmoon.com...")
+    print("Scraping 1st, 2nd, 3rd Prize from 4dmoon.com...")
     print(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("=" * 50)
     
     # Initialize database
     db.init_db()
     
-    # Clear old data? Optional - comment out if want to keep history
-    # db.clear_all_data()
-    
     # Scrape current TOP 3 data
-    update_current_week_data()
+    record_count = update_current_week_data()
     
-    # Update metadata
-    db.set_last_update_date()
+    if record_count > 0:
+        db.set_last_update_date()
+    else:
+        print("⚠️ No data scraped. Last update date not changed.")
     
     # Show stats
     stats = db.get_stats()
     print("-" * 50)
     print(f"Update Complete!")
     print(f"Total records in database: {stats['total_records']}")
-    print(f"Companies: {', '.join(stats['companies'])}")
+    print(f"Companies: {', '.join(stats['companies']) if stats['companies'] else 'None'}")
     print("=" * 50)
     
-    return True
+    return record_count > 0
 
 if __name__ == "__main__":
     update_all_data()
